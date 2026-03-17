@@ -437,7 +437,7 @@ def call_groq_llama4(prompt: str, system: str, key: str, temp: float, max_tok: i
 MODELS = [
     {
         "id": "gemini",
-        "label": "Gemini 2.0 Flash",
+        "label": "Gemini 3 Flash",
         "provider": "Google",
         "badge_class": "badge-gemini",
         "card_class": "gemini-card",
@@ -646,7 +646,7 @@ with st.sidebar:
     st.markdown(
         '<div style="margin-top:auto;padding-top:2rem;font-size:0.65rem;color:var(--text-muted);line-height:1.6">'
         'Responses run in parallel. API keys are never stored.<br>'
-        'Models: Gemini 2.0 Flash · Llama 3.3 70B · Llama 4 Scout 17B'
+        'Models: Gemini 3 Flash · Llama 3.3 70B · Llama 4 Scout 17B'
         '</div>',
         unsafe_allow_html=True,
     )
