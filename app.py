@@ -358,7 +358,7 @@ def call_gemini(prompt: str, system: str, key: str, temp: float, max_tok: int) -
         full_prompt = f"{system}\n\n{prompt}" if system else prompt
         t0 = time.time()
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             contents=full_prompt,
             config=types.GenerateContentConfig(
                 temperature=temp,
