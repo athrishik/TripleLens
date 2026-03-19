@@ -45,16 +45,32 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
     radial-gradient(ellipse  50% 40% at 50%  50%,  rgba(66,133,244,0.04) 0%, transparent 65%);
   background-attachment: fixed;
 }
-.block-container { padding-top: 0 !important; max-width: 1440px !important; width: 100% !important; margin-left: auto !important; margin-right: auto !important; }
-.hero { width: 100%; }
+.block-container { padding-top: 0 !important; }
+
+/* ── Hide Streamlit chrome ──
+   stExpandSidebarButton (the ">>" reopen button) lives inside <header> → stToolbar.
+   Hiding <header> buries it. Fix: hide header, then un-hide ONLY that button by its
+   confirmed testid from the Streamlit 1.55 source. ── */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; }
-/* ── Keep the sidebar collapse/expand toggle always visible ── */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {
+[data-testid="stExpandSidebarButton"] {
   visibility: visible !important;
-  opacity: 1 !important;
   pointer-events: auto !important;
+}
+
+/* ── Hero centering ──
+   Root cause: Streamlit's emotion CSS applies marginLeft:0 and marginRight:0 to
+   every <p> tag inside markdown containers (.css-xxx p selector), which overrides
+   .hero-sub { margin:0 auto } since the emotion selector has higher specificity.
+   Fix: !important on the hero-sub and hero-bar margins beats the emotion rule. ── */
+.hero { width: 100%; }
+.hero-sub {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.hero-bar {
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 /* ── Sidebar ── */
