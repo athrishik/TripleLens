@@ -45,8 +45,17 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
     radial-gradient(ellipse  50% 40% at 50%  50%,  rgba(66,133,244,0.04) 0%, transparent 65%);
   background-attachment: fixed;
 }
-.block-container { padding-top: 0 !important; max-width: 1440px; }
-#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding-top: 0 !important; max-width: 1440px !important; width: 100% !important; margin-left: auto !important; margin-right: auto !important; }
+.hero { width: 100%; }
+#MainMenu, footer { visibility: hidden; }
+header { visibility: hidden; }
+/* ── Keep the sidebar collapse/expand toggle always visible ── */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
@@ -307,6 +316,8 @@ def run_all(prompt, sys_p, gkey, gqkey, temp, maxt):
 # ─── Session State ─────────────────────────────────────────────────────────────
 if "history"     not in st.session_state: st.session_state.history     = []
 if "prompt_text" not in st.session_state: st.session_state.prompt_text = ""
+if "gemini_key"  not in st.session_state: st.session_state.gemini_key  = ""
+if "groq_key"    not in st.session_state: st.session_state.groq_key    = ""
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -321,8 +332,8 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="sb-section">API Keys</div>', unsafe_allow_html=True)
-    gemini_key = st.text_input("Gemini API Key", type="password", placeholder="AIza...",  help="Google AI Studio — free tier")
-    groq_key   = st.text_input("Groq API Key",   type="password", placeholder="gsk_...",  help="Covers Llama 3.3 & Llama 4 — free tier")
+    gemini_key = st.text_input("Gemini API Key", key="gemini_key", type="password", placeholder="AIza...",  help="Google AI Studio — free tier")
+    groq_key   = st.text_input("Groq API Key",   key="groq_key",   type="password", placeholder="gsk_...",  help="Covers Llama 3.3 & Llama 4 — free tier")
 
     st.markdown("---")
     st.markdown('<div class="sb-section">Generation</div>', unsafe_allow_html=True)
@@ -363,6 +374,7 @@ with st.expander("📋 Prompt Templates", expanded=False):
     for i, (label, text) in enumerate(TEMPLATES.items()):
         if tc[i].button(label, key=f"t{i}"):
             st.session_state.prompt_text = text
+            st.session_state["main_p"] = text   # ← directly updates the textarea widget
             st.rerun()
 
 # ─── System Prompt ─────────────────────────────────────────────────────────────
