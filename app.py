@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-import html  # BUG 3 FIX: needed for html.escape() to prevent model output from breaking card HTML
 import concurrent.futures
 from datetime import datetime
 
@@ -46,15 +45,33 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
     radial-gradient(ellipse  50% 40% at 50%  50%,  rgba(66,133,244,0.04) 0%, transparent 65%);
   background-attachment: fixed;
 }
-.block-container { padding-top: 0 !important; max-width: 1440px !important; width: 100% !important; margin-left: auto !important; margin-right: auto !important; }
+.block-container { padding-top: 0 !important; }
+
+/* ── Hide Streamlit chrome ──
+   stExpandSidebarButton (the ">>" reopen button) lives inside <header> → stToolbar.
+   Hiding <header> buries it. Fix: hide header, then un-hide ONLY that button by its
+   confirmed testid from the Streamlit 1.55 source. ── */
 #MainMenu, footer { visibility: hidden; }
-/* ── SIDEBAR FIX: Never hide the whole header — that kills the sidebar expand button's
-   pointer events in Chromium even when visibility:visible is re-applied on the child.
-   Instead, hide only the specific toolbar elements inside the header. ── */
-[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stToolbar"] { display: none !important; }
-[data-testid="stDecoration"] { display: none !important; }
-[data-testid="stStatusWidget"] { display: none !important; }
+header { visibility: hidden; }
+[data-testid="stExpandSidebarButton"] {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* ── Hero centering ──
+   Root cause: Streamlit's emotion CSS applies marginLeft:0 and marginRight:0 to
+   every <p> tag inside markdown containers (.css-xxx p selector), which overrides
+   .hero-sub { margin:0 auto } since the emotion selector has higher specificity.
+   Fix: !important on the hero-sub and hero-bar margins beats the emotion rule. ── */
+.hero { width: 100%; }
+.hero-sub {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.hero-bar {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
@@ -99,16 +116,8 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
 .model-pill b { color:var(--text-1); font-weight:600; }
 .model-pill small { font-size:0.6rem; color:var(--text-3); }
 
-/* ── Hero ── BUG 2 FIX (merged duplicate .hero rule, added centering context) ── */
-.hero {
-  width: 100%;
-  padding: 2.6rem 0 1.8rem;
-  text-align: center;
-}
-/* Pierce Streamlit's internal markdown wrapper which resets text-align to left */
-.hero [data-testid="stMarkdownContainer"],
-.hero .element-container { text-align: center !important; }
-
+/* ── Hero ── */
+.hero { padding:2.6rem 0 1.8rem; text-align:center; }
 .hero-tag {
   display:inline-flex; align-items:center; gap:0.4rem;
   background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.25);
@@ -122,8 +131,7 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
   background:linear-gradient(135deg,#FFFFFF 0%,#C4B5FD 40%,#67E8F9 85%);
   -webkit-background-clip:text !important; -webkit-text-fill-color:transparent !important; background-clip:text !important;
 }
-/* BUG 2 FIX: added explicit text-align:center — Streamlit's wrapper resets inheritance */
-.hero-sub { font-size:0.92rem; color:var(--text-2); max-width:460px; margin:0 auto; line-height:1.6; text-align:center; }
+.hero-sub { font-size:0.92rem; color:var(--text-2); max-width:460px; margin:0 auto; line-height:1.6; }
 .hero-bar { width:46px; height:2px; background:linear-gradient(90deg,var(--accent),var(--llama4)); margin:1.3rem auto 0; border-radius:99px; }
 
 /* ── GREEN prompt textarea ── */
@@ -284,7 +292,7 @@ def call_gemini(prompt, system_prompt, api_key, temperature, max_tokens):
         client = genai.Client(api_key=api_key)
         full = f"{system_prompt.strip()}\n\n{prompt}" if system_prompt.strip() else prompt
         resp = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             contents=full,
             config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens),
         )
@@ -352,7 +360,7 @@ with st.sidebar:
     st.markdown('<div class="sb-section">Active Models</div>', unsafe_allow_html=True)
     st.markdown(f"""
     <div class="model-list">
-      <div class="model-pill"><span class="mp-dot mp-g"></span><span><b>Gemini 2.0 Flash</b><br><small>Google · {'✓ ready' if gemini_key else 'key needed'}</small></span></div>
+      <div class="model-pill"><span class="mp-dot mp-g"></span><span><b>Gemini 3 Flash Preview</b><br><small>Google · {'✓ ready' if gemini_key else 'key needed'}</small></span></div>
       <div class="model-pill"><span class="mp-dot mp-l3"></span><span><b>Llama 3.3 · 70B</b><br><small>Meta / Groq · {'✓ ready' if groq_key else 'key needed'}</small></span></div>
       <div class="model-pill"><span class="mp-dot mp-l4"></span><span><b>Llama 4 Scout · 17B</b><br><small>Meta / Groq · {'✓ ready' if groq_key else 'key needed'}</small></span></div>
     </div>
@@ -382,7 +390,7 @@ with st.expander("📋 Prompt Templates", expanded=False):
     for i, (label, text) in enumerate(TEMPLATES.items()):
         if tc[i].button(label, key=f"t{i}"):
             st.session_state.prompt_text = text
-            st.session_state["main_p"] = text
+            st.session_state["main_p"] = text   # ← directly updates the textarea widget
             st.rerun()
 
 # ─── System Prompt ─────────────────────────────────────────────────────────────
@@ -429,7 +437,7 @@ if compare:
 
 # ─── Model Config ──────────────────────────────────────────────────────────────
 MODELS = [
-    {"key": "gemini",  "label": "Gemini 2.0 Flash", "prov": "Google",        "cls": "bg-gem", "miss": "Add Gemini key to enable"},
+    {"key": "gemini",  "label": "Gemini 3 Flash Preview", "prov": "Google",        "cls": "bg-gem", "miss": "Add Gemini key to enable"},
     {"key": "llama33", "label": "Llama 3.3 · 70B",  "prov": "Meta via Groq", "cls": "bg-l33", "miss": "Add Groq key to enable"},
     {"key": "llama4",  "label": "Llama 4 Scout·17B","prov": "Meta via Groq", "cls": "bg-l4",  "miss": "Add Groq key to enable"},
 ]
@@ -451,18 +459,12 @@ if "last_results" in st.session_state:
             if m["key"] in res:
                 r = res[m["key"]]
                 if r["error"]:
-                    # BUG 3 FIX: escape error string too — API errors can contain angle brackets
-                    safe_err = html.escape(r["error"])
-                    st.markdown(f'<div class="r-card"><div class="r-err">⚠ {safe_err}</div><div class="stats"><span class="sc">⏱ <b>{r["time"]:.2f}s</b></span></div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="r-card"><div class="r-err">⚠ {r["error"]}</div><div class="stats"><span class="sc">⏱ <b>{r["time"]:.2f}s</b></span></div></div>', unsafe_allow_html=True)
                 else:
-                    # BUG 3 FIX: escape model output before injecting into HTML.
-                    # Without this, any model response containing </div>, <script>, or HTML
-                    # entities will break card layout or inject executable markup.
-                    safe_text = html.escape(r["text"])
                     w = len(r["text"].split()) if r["text"] else 0
                     st.markdown(f"""
                     <div class="r-card">
-                      <div class="r-txt">{safe_text}</div>
+                      <div class="r-txt">{r['text']}</div>
                       <div class="stats">
                         <span class="sc">⏱ <b>{r['time']:.2f}s</b></span>
                         <span class="sc">↑ <b>{r['tokens_in']:,}</b> in</span>
