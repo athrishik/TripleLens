@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import html  # BUG 3 FIX: needed for html.escape() to prevent model output from breaking card HTML
 import concurrent.futures
 from datetime import datetime
 
@@ -45,32 +46,26 @@ html, body, [class*="css"] { font-family: var(--font) !important; color: var(--t
     radial-gradient(ellipse  50% 40% at 50%  50%,  rgba(66,133,244,0.04) 0%, transparent 65%);
   background-attachment: fixed;
 }
-.block-container { padding-top: 0 !important; }
-
-/* ── Hide Streamlit chrome ──
-   stExpandSidebarButton (the ">>" reopen button) lives inside <header> → stToolbar.
-   Hiding <header> buries it. Fix: hide header, then un-hide ONLY that button by its
-   confirmed testid from the Streamlit 1.55 source. ── */
+.block-container { padding-top: 0 !important; max-width: 1440px !important; width: 100% !important; margin-left: auto !important; margin-right: auto !important; }
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; }
-[data-testid="stExpandSidebarButton"] {
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
 
-/* ── Hero centering ──
-   Root cause: Streamlit's emotion CSS applies marginLeft:0 and marginRight:0 to
-   every <p> tag inside markdown containers (.css-xxx p selector), which overrides
-   .hero-sub { margin:0 auto } since the emotion selector has higher specificity.
-   Fix: !important on the hero-sub and hero-bar margins beats the emotion rule. ── */
-.hero { width: 100%; }
-.hero-sub {
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-.hero-bar {
-  margin-left: auto !important;
-  margin-right: auto !important;
+/* ── BUG 1 FIX: Keep the sidebar collapse/expand toggle always visible and reachable ──
+   Root cause: header { visibility: hidden } buries the expand button.
+   Fix: pin it to a fixed viewport position with max z-index so it's always clickable,
+   regardless of parent visibility or layer stacking. Added button[] selector for
+   Streamlit versions that render it as a <button> element. */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"],
+button[data-testid="collapsedControl"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  display: flex !important;
+  position: fixed !important;
+  top: 0.4rem !important;
+  left: 0.4rem !important;
+  z-index: 999999 !important;
 }
 
 /* ── Sidebar ── */
@@ -116,8 +111,16 @@ header { visibility: hidden; }
 .model-pill b { color:var(--text-1); font-weight:600; }
 .model-pill small { font-size:0.6rem; color:var(--text-3); }
 
-/* ── Hero ── */
-.hero { padding:2.6rem 0 1.8rem; text-align:center; }
+/* ── Hero ── BUG 2 FIX (merged duplicate .hero rule, added centering context) ── */
+.hero {
+  width: 100%;
+  padding: 2.6rem 0 1.8rem;
+  text-align: center;
+}
+/* Pierce Streamlit's internal markdown wrapper which resets text-align to left */
+.hero [data-testid="stMarkdownContainer"],
+.hero .element-container { text-align: center !important; }
+
 .hero-tag {
   display:inline-flex; align-items:center; gap:0.4rem;
   background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.25);
@@ -131,7 +134,8 @@ header { visibility: hidden; }
   background:linear-gradient(135deg,#FFFFFF 0%,#C4B5FD 40%,#67E8F9 85%);
   -webkit-background-clip:text !important; -webkit-text-fill-color:transparent !important; background-clip:text !important;
 }
-.hero-sub { font-size:0.92rem; color:var(--text-2); max-width:460px; margin:0 auto; line-height:1.6; }
+/* BUG 2 FIX: added explicit text-align:center — Streamlit's wrapper resets inheritance */
+.hero-sub { font-size:0.92rem; color:var(--text-2); max-width:460px; margin:0 auto; line-height:1.6; text-align:center; }
 .hero-bar { width:46px; height:2px; background:linear-gradient(90deg,var(--accent),var(--llama4)); margin:1.3rem auto 0; border-radius:99px; }
 
 /* ── GREEN prompt textarea ── */
@@ -390,7 +394,7 @@ with st.expander("📋 Prompt Templates", expanded=False):
     for i, (label, text) in enumerate(TEMPLATES.items()):
         if tc[i].button(label, key=f"t{i}"):
             st.session_state.prompt_text = text
-            st.session_state["main_p"] = text   # ← directly updates the textarea widget
+            st.session_state["main_p"] = text
             st.rerun()
 
 # ─── System Prompt ─────────────────────────────────────────────────────────────
@@ -459,12 +463,18 @@ if "last_results" in st.session_state:
             if m["key"] in res:
                 r = res[m["key"]]
                 if r["error"]:
-                    st.markdown(f'<div class="r-card"><div class="r-err">⚠ {r["error"]}</div><div class="stats"><span class="sc">⏱ <b>{r["time"]:.2f}s</b></span></div></div>', unsafe_allow_html=True)
+                    # BUG 3 FIX: escape error string too — API errors can contain angle brackets
+                    safe_err = html.escape(r["error"])
+                    st.markdown(f'<div class="r-card"><div class="r-err">⚠ {safe_err}</div><div class="stats"><span class="sc">⏱ <b>{r["time"]:.2f}s</b></span></div></div>', unsafe_allow_html=True)
                 else:
+                    # BUG 3 FIX: escape model output before injecting into HTML.
+                    # Without this, any model response containing </div>, <script>, or HTML
+                    # entities will break card layout or inject executable markup.
+                    safe_text = html.escape(r["text"])
                     w = len(r["text"].split()) if r["text"] else 0
                     st.markdown(f"""
                     <div class="r-card">
-                      <div class="r-txt">{r['text']}</div>
+                      <div class="r-txt">{safe_text}</div>
                       <div class="stats">
                         <span class="sc">⏱ <b>{r['time']:.2f}s</b></span>
                         <span class="sc">↑ <b>{r['tokens_in']:,}</b> in</span>
